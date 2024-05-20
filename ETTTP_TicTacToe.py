@@ -1,4 +1,5 @@
 
+import re
 import random
 import tkinter as tk
 from socket import *
@@ -7,7 +8,7 @@ import _thread
 SIZE=1024
 
 class TTT(tk.Tk):
-    def __init__(self, target_socket,src_addr,dst_addr, client=True):
+    def __init__(self, target_socket,src_addr, dst_addr, client=True):
         super().__init__()
         
         self.my_turn = -1
@@ -28,14 +29,14 @@ class TTT(tk.Tk):
         ############## updated ###########################
         if client:
             self.myID = 1   #0: server, 1: client
-            self.title('34743-01-Tic-Tac-Toe Client')
+            self.title('34743-02-Tic-Tac-Toe Client')
             self.user = {'value': self.line_size+1, 'bg': 'blue',
-                     'win': 'Result: You Won!', 'text':'O','Name':"YOU"}
+                     'win': 'Result: You Won!', 'text':'O','Name':"ME"}
             self.computer = {'value': 1, 'bg': 'orange',
-                             'win': 'Result: You Lost!', 'text':'X','Name':"ME"}   
+                             'win': 'Result: You Lost!', 'text':'X','Name':"YOU"}   
         else:
-            self.myID = 0
-            self.title('34743-01-Tic-Tac-Toe Server')
+            self.myID = 0 
+            self.title('34743-02-Tic-Tac-Toe Server')
             self.user = {'value': 1, 'bg': 'orange',
                          'win': 'Result: You Won!', 'text':'X','Name':"ME"}   
             self.computer = {'value': self.line_size+1, 'bg': 'blue',
@@ -205,22 +206,26 @@ class TTT(tk.Tk):
         If is not, close socket and quit
         '''
         ###################  Fill Out  #######################
-        msg =  "message" # get message using socket
+        msg = self.socket.recv(SIZE).decode() # get message using socket
 
-        msg_valid_check = False
-         
-        
-        if msg_valid_check: # Message is not valid
+        msg_valid_check = check_msg(msg, self.recv_ip) # ETTTP form 확인 
+                        
+        if msg_valid_check == False: # Message is not valid, False return
             self.socket.close()   
             self.quit()
             return
         else:  # If message is valid - send ack, update board and change turn
-
-            loc = 5 # received next-move
             
+            match = re.search(r"New-Move:\((\d+),(\d+)\)", msg) #받은 msg에서 좌표값을 추출하여 row와 col에 저장한다.
+            if match:
+                row = int(match.group(1))
+                col = int(match.group(2))
+                
+            ack_msg = f"ACK ETTTP/1.0\r\nHost:{self.send_ip}\r\nNew-Move:({row},{col})\r\n\r\n" # ack msg를 만든다.
+            self.socket.send(str(ack_msg).encode()) # ack msg를 보낸다. 
+            
+            loc = int(row) * 3 + int(col) # received next-move
             ######################################################   
-            
-            
             #vvvvvvvvvvvvvvvvvvv  DO NOT CHANGE  vvvvvvvvvvvvvvvvvvv
             self.update_board(self.computer, loc, get=True)
             if self.state == self.active:  
@@ -248,16 +253,32 @@ class TTT(tk.Tk):
         '''
         Check if the selected location is already taken or not
         '''
+        match = re.search(r"New-Move:\((\d+),(\d+)\)", d_msg) # 입력된 메시지에서 좌표값 찾기 
+        if match:
+            row = int(match.group(1))
+            col = int(match.group(2))
+            user_move = int(row) * 3 + int(col) # 좌표값을 loc으로 변환한다. 
+            
+        if self.board[user_move] != 0: #이미 선택된 값이라면 return한다.
+            return
 
         '''
         Send message to peer
         '''
+        self.socket.send(str(d_msg).encode()) # 생성한 message를 보낸다. 
+        
         
         '''
         Get ack
         '''
+        ack_msg = self.socket.recv(SIZE).decode() # ack message를 받는다
+        ack_vaild = check_msg(ack_msg, self.recv_ip)
         
-        loc = 5 # peer's move, from 0 to 8
+        if ack_vaild == False:
+            self.quit()
+
+        else:
+            loc = int(row) * 3 + int(col) # peer's move, from 0 to 8        
 
         ######################################################  
         
@@ -280,10 +301,16 @@ class TTT(tk.Tk):
         '''
         row,col = divmod(selection,3)
         ###################  Fill Out  #######################
-
         # send message and check ACK
+
+        message = f"SEND ETTTP/1.0\r\nHost:{self.send_ip}\r\nNew-Move:({row},{col})\r\n\r\n"
+        self.socket.send(str(message).encode()) # 생성한 message를 보낸다.
         
-        return True
+        ack_msg = self.socket.recv(SIZE).decode() # ack message를 받는다
+        
+        return check_msg(ack_msg, self.recv_ip) # ack message를 vaild check 결과를 return한다.
+            
+  
         ######################################################  
 
     
@@ -294,11 +321,36 @@ class TTT(tk.Tk):
         '''
         # no skeleton
         ###################  Fill Out  #######################
+        if get:
+            # winner = "YOU"
+            result_recv = self.socket.recv(SIZE).decode() # 상대가 보내는 메시지 확인
+            result_valid = check_msg(result_recv, self.recv_ip) # result 유효성 체크
+            
+            result = f"RESULT ETTTP/1.0\r\nHost:{self.send_ip}\r\nWinner:{winner}\r\n\r\n" # 내 result 만들기
+            self.socket.send(str(result).encode()) # 내 result 보내기 
 
-        
+            lines = result_recv.split('\r\n')
 
+            if result_valid and winner == 'YOU' and lines[2].split(':')[1] == 'ME':# result 유효성 체크하고 누가 승자인지 체크
+                return True
+            else:
+                return False
+            
+        else:
+            # winner = "ME"
+            result = f"RESULT ETTTP/1.0\r\nHost:{self.send_ip}\r\nWinner:{winner}\r\n\r\n" # 내 result 만들기
+            self.socket.send(str(result).encode())
+            
+            result_recv = self.socket.recv(SIZE).decode() #상대가 보내는 메시지 확인 
+            result_valid = check_msg(result_recv, self.recv_ip) #result 유효성 체크
 
-        return True
+            lines = result_recv.split('\r\n')
+            
+            if result_valid and winner == 'ME' and lines[2].split(':')[1] == 'YOU': # result 유효성 체크하고 누가 승자인지 체크
+                return True
+            else:
+                return False
+
         ######################################################  
 
         
@@ -348,10 +400,63 @@ def check_msg(msg, recv_ip):
     '''
     Function that checks if received message is ETTTP format
     '''
+    #version 1.0이 맞는지, IP가 내 것이 맞는지 두개만 check하면 됨.
     ###################  Fill Out  #######################
-
     
+    '''
+    메시지 형태
+    
+    SEND ETTTP/1.0 \r\n
+    Host: 192.168.0.2 \r\n
+    New-Move: (1, 2) \r\n
+    \r\n
 
+    ACK ETTTP/1.0 \r\n
+    Host: 192.168.0.1 \r\n
+    New-Move: (1, 2) \r\n
+    \r\n
 
-    return True
+    RESULT ETTTP/1.0 \r\n
+    Host: 192.168.0.2 \r\n
+    Winner: ME \r\n
+    \r\n
+    '''
+    
+    # Split the message into lines
+    lines = msg.split('\r\n') #\r\n기준으로 메시지 줄 나누기
+
+    if len(lines) != 5: #줄 길이가 5가 아니면 False
+        return False
+    
+    # 분할한 메시지를 줄 별로 나누어 변수에 저장한다. 
+    type = lines[0].split(" ")[0] # 메시지 type을 저장한다 SEND/ACK/RESULT
+    version = lines[0].split(" ")[1] # ETTTP/version을 저장한다
+    host_ip = lines[1].split(":")[1].strip() # host ip를 저장한다. 
+    
+    # protocol 버전 체크
+    if version != "ETTTP/1.0":
+        return False
+    # host ip 체크
+    elif host_ip != recv_ip:
+        return False
+    
+    if type == "SEND" : # 메시지 종류가 SEND일 때
+        # line[2]에서 : 을 기준으로 분리된 string 중 첫번째 string이 "New-Move"나 "First-Move"인지 check
+        if lines[2].split(":")[0].strip() == "New-Move" or lines[2].split(":")[0].strip() == "First-Move" :
+            return True
+        else :
+            return False
+        
+    elif type == "ACK" : # ACK일 때도 SEND일 때와 유사한 방식을 사용한다. 
+        if lines[2].split(":")[0].strip() == "New-Move" or lines[2].split(":")[0].strip() == "First-Move" :
+            return True
+        else :
+            return False
+
+    elif type == "RESULT": # RESULT일 때는 위 두 type이 아닌데, RESULT와 type이 일치하면 True를 반환하고
+        return True
+    
+    else: # 세 타입 중 매치되는 타입이 없으면 False를 반환한다. 
+        return False
+
     ######################################################  
