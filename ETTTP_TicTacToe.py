@@ -206,26 +206,38 @@ class TTT(tk.Tk):
         """
         ###################  Fill Out  #######################
         
+        # Receive the message from the socket
         msg = self.socket.recv(SIZE).decode()
         msg_valid = check_msg(msg, self.recv_ip)
 
+        # Check if the received message is valid
         if not msg_valid:
             self.socket.close()
             self.quit()
             return
 
+        # Use regular expression to extract the row and column from the message
         match = re.search(r"New-Move:\((\d+),(\d+)\)", msg)
-        
         if match:
+            
             row, col = map(int, match.groups())
+            
+            # Construct the ACK message with the received move
             ack_msg = f"ACK ETTTP/1.0\r\nHost:{self.send_ip}\r\nNew-Move:({row},{col})\r\n\r\n"
+            
+            # Send the ACK message to the peer
             self.socket.send(str(ack_msg).encode())
+            
+            # Calculate the location on the board based on row and column
             loc = row * 3 + col
             
             ###################################################### 
             
             #vvvvvvvvvvvvvvvvvvv DO NOT CHANGE vvvvvvvvvvvvvvvvvvv
+            # Update the board with the received move
             self.update_board(self.computer, loc, get=True)
+            
+            # Check if it's the current player's turn
             if self.state == self.active:
                 self.my_turn = 1
                 self.l_status_bullet.config(fg='green')
@@ -239,25 +251,37 @@ class TTT(tk.Tk):
         Need to check if this turn is my turn or not
         '''
 
+        # If it's not the current player's turn, clear the textbox and return
         if not self.my_turn:
             self.t_debug.delete(1.0,"end")
             return
-        # get message from the input box
+        
+        # Get the message from the input textbox
         d_msg = self.t_debug.get(1.0,"end")
-        d_msg = d_msg.replace("\\r\\n","\r\n")   # msg is sanitized as \r\n is modified when it is given as input
+        
+        # Replace the newline characters with the correct format
+        d_msg = d_msg.replace("\\r\\n","\r\n")  # msg is sanitized as \\r\\n is modified when it is given as input
+        
+        # Clear the textbox
         self.t_debug.delete(1.0,"end")
         
         ###################  Fill Out  #######################
         
+        # Use regular expression to extract the row and column from the message
         match = re.search(r"New-Move:\((\d+),(\d+)\)", d_msg)
-        
         if match:
             row, col = map(int, match.groups())
             user_move = row * 3 + col
+            
+            # Check if the selected cell on the board is empty
             if self.board[user_move] == 0:
-                
+                # Send the message to the peer
                 self.socket.send(str(d_msg).encode())
+                
+                # Receive the ACK message from the peer
                 ack_msg = self.socket.recv(SIZE).decode()
+                
+                # Check if the received ACK message is valid
                 ack_valid = check_msg(ack_msg, self.recv_ip)
                 
                 if ack_valid:
@@ -271,12 +295,17 @@ class TTT(tk.Tk):
         ######################################################  
         
         #vvvvvvvvvvvvvvvvvvv  DO NOT CHANGE  vvvvvvvvvvvvvvvvvvv
+        # Update the board with the user's move
         self.update_board(self.user, loc)
-            
-        if self.state == self.active:    # always after my move
+        
+        # Check if it's the current player's turn
+        if self.state == self.active:
+            # It's the opponent's turn now
             self.my_turn = 0
             self.l_status_bullet.config(fg='#FF4500')
             self.l_status ['text'] = ['Hold']
+            
+            # Start a new thread to get the opponent's move
             _thread.start_new_thread(self.get_move,())
         #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         
@@ -286,16 +315,22 @@ class TTT(tk.Tk):
         Function to send message to peer using button click
         selection indicates the selected button
         '''
+        # Calculate the row and column from the selection
         row,col = divmod(selection,3)
         
         ###################  Fill Out  #######################
         
-        # send message and check ACK
+        # Construct the send message with the selected row and column
         send_msg = f"SEND ETTTP/1.0\r\nHost:{self.send_ip}\r\nNew-Move:({row},{col})\r\n\r\n"
-        self.socket.send(str(send_msg).encode()) # 생성한 message를 보낸다.
         
-        ack_msg = self.socket.recv(SIZE).decode() # ack message를 받는다
-        return check_msg(ack_msg, self.recv_ip) # ack message를 vaild check 결과를 return한다.
+        # Send the message to the peer
+        self.socket.send(str(send_msg).encode())
+        
+        # Receive the ACK message from the peer
+        ack_msg = self.socket.recv(SIZE).decode()
+        
+        # Check if the received ACK message is valid and return the result
+        return check_msg(ack_msg, self.recv_ip)
         
         ######################################################  
 
@@ -307,20 +342,30 @@ class TTT(tk.Tk):
         '''
         ###################  Fill Out  #######################
         
+        # Construct the result message with the winner information
         own_result = f"RESULT ETTTP/1.0\r\nHost:{self.send_ip}\r\nWinner:{winner}\r\n\r\n"
+        
+        # Send the result message to the peer
         self.socket.send(str(own_result).encode())
 
+        # Receive the result message from the peer
         peer_result = self.socket.recv(SIZE).decode()
+        
+        # Check if the received result message is valid
         result_valid = check_msg(peer_result, self.recv_ip)
 
         if get:
-            # 상대방이 승자인 경우
+            # If the current user is getting the result (i.e., the peer is the winner)
             expected_winner = "ME" if winner == "YOU" else "YOU"
+            
+            # Check if the received result matches the expected winner and return the result
             return result_valid and peer_result.split('\r\n')[2].split(':')[1] == expected_winner
-
-        # 자신이 승자인 경우
-        expected_winner = "YOU" if winner == "ME" else "ME"
-        return result_valid and peer_result.split('\r\n')[2].split(':')[1] == expected_winner
+        else:
+            # If the current user is reporting the result (i.e., the current user is the winner)
+            expected_winner = "YOU" if winner == "ME" else "ME"
+            
+            # Check if the received result matches the expected winner and return the result
+            return result_valid and peer_result.split('\r\n')[2].split(':')[1] == expected_winner
 
         ######################################################  
 
@@ -371,20 +416,32 @@ def check_msg(msg, recv_ip):
     """
     ###################  Fill Out  #######################
     
+    # Split the message into lines
     lines = msg.split('\r\n')
+    
+    # Check if the message has exactly 5 lines
     if len(lines) != 5:
         return False
 
+    # Extract the message type and version
     type, version = lines[0].split()
+    
+    # Extract the host IP from the message
     host_ip = lines[1].split(':')[1].strip()
 
+    # Check if the version is ETTTP/1.0 and if the host IP matches the expected IP
     if version != "ETTTP/1.0" or host_ip != recv_ip:
         return False
 
+    # Check if the message type is SEND or ACK
     if type == "SEND" or type == "ACK":
+        # Extract the first part of the third line
         first_part = lines[2].split(':')[0].strip()
+        
+        # Check if the first part is either "New-Move" or "First-Move"
         return first_part in ("New-Move", "First-Move")
 
+    # If the message type is not SEND or ACK, check if it is RESULT
     return type == "RESULT"
 
     ######################################################

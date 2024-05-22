@@ -24,7 +24,8 @@ if __name__ == '__main__':
         
         # Check if the received message is valid
         msg_valid = check_msg(start_msg, MY_IP)
-        if not msg_valid:
+        
+        if not msg_valid:  # if msg not valid, socket close
             client_socket.close()
             TTT.quit()
 

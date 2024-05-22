@@ -44,7 +44,8 @@ if __name__ == '__main__':
 
         # Check if the received ACK message is valid
         ack_valid = check_msg(ack_msg, MY_IP)
-        if not ack_valid:
+        
+        if not ack_valid: # if ack not valid, socket close
             client_socket.close()
             TTT.quit()
         
