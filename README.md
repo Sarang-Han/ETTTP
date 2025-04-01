@@ -1,15 +1,15 @@
-## ETTTP (Ewha Tic-Tac-Toe Protocol) Project
+## ETTTP Project 👾
 
 ![UI](https://github.com/user-attachments/assets/a14fa132-1678-4104-a302-731e45400042)
 TCP/IP 기반으로 구현한 파이썬 Tic-Tac-Toe 프로그램입니다.
 
-### 기술 스택
+## 기술 스택
 - Python 3.x
 - tkinter (GUI)
 - Socket Programming
 - Threading
 
-### 주요 기능
+## 주요 기능
 
 **Rules**
 - 3x3 보드에서 진행되는 틱택토 게임
@@ -27,7 +27,7 @@ TCP/IP 기반으로 구현한 파이썬 Tic-Tac-Toe 프로그램입니다.
 - 게임 결과 표시
 - 디버그 메시지 입력 기능
 
-### 프로젝트 구조
+## 프로젝트 구조
 ```
 ETTTP/
 ├── ETTTP_Server.py     # 서버
@@ -36,7 +36,7 @@ ETTTP/
 └── README.md           # 프로젝트 문서
 ```
 
-### 실행 방법
+## 실행 방법
 
 ```
 # 1. 서버 실행
@@ -46,7 +46,7 @@ $ python ETTTP_Server.py
 $ python ETTTP_Client.py
 ```
 
-### Protocol
+## Protocol
 
 **메세지 포맷**
 ```
@@ -59,6 +59,6 @@ Host:[IP_ADDRESS]
 - `ACK`: 수신 확인
 - `RESULT`: 게임 결과 전송
 
-### 개발 환경 설정
+## 개발 환경 설정
 - Python 3.x 설치
 - tkinter 라이브러리 설치 확인
